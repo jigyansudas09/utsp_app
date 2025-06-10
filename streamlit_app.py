@@ -386,43 +386,46 @@ class EnhancedVisualizer:
             # Convert edge_index to numpy if it's a tensor
             edge_index_np = safe_to_numpy(edge_index)
             
-            # Normalize probabilities for better visualization
+            # Get top 10% of edges by probability
             if len(edge_probs) > 0:
-                min_prob, max_prob = edge_probs.min(), edge_probs.max()
-                if max_prob > min_prob:
-                    normalized_probs = (edge_probs - min_prob) / (max_prob - min_prob)
-                else:
-                    normalized_probs = edge_probs
-            else:
-                normalized_probs = edge_probs
-            
-            # Plot edges with probabilities using colormap
-            import matplotlib.cm as cm
-            cmap = cm.get_cmap('viridis')  # or 'plasma', 'hot', 'cool'
-            
-            for i in range(edge_index_np.shape[1]):
-                u, v = edge_index_np[0, i], edge_index_np[1, i]
-                prob = edge_probs[i]
-                norm_prob = normalized_probs[i]
+                # Calculate threshold for top 10%
+                threshold = np.percentile(edge_probs, 90)  # Keep top 10%
                 
-                # Lower threshold and better visibility
-                if prob > 0.01:  # Much lower threshold
+                # Filter edges and probabilities
+                top_indices = np.where(edge_probs >= threshold)[0]
+                top_probs = edge_probs[top_indices]
+                
+                # Normalize the top probabilities
+                min_prob, max_prob = top_probs.min(), top_probs.max()
+                if max_prob > min_prob:
+                    normalized_probs = (top_probs - min_prob) / (max_prob - min_prob)
+                else:
+                    normalized_probs = top_probs
+                
+                # Plot edges with probabilities using colormap
+                import matplotlib.cm as cm
+                cmap = cm.get_cmap('viridis')
+                
+                for idx, i in enumerate(top_indices):
+                    u, v = edge_index_np[0, i], edge_index_np[1, i]
+                    norm_prob = normalized_probs[idx]
+                    
                     color = cmap(norm_prob)
                     # Use fixed alpha for visibility, vary linewidth instead
-                    linewidth = 0.5 + 4 * norm_prob  # Range: 0.5 to 4.5
+                    linewidth = 1.0 + 3 * norm_prob  # Range: 1.0 to 4.0
                     ax.plot([coords_np[u, 0], coords_np[v, 0]], 
                            [coords_np[u, 1], coords_np[v, 1]], 
                            color=color, 
-                           alpha=0.7,  # Fixed alpha for visibility
+                           alpha=0.8,  # Slightly higher alpha for better visibility
                            linewidth=linewidth, 
                            zorder=1)
-            
-            ax.set_title('Edge Probability Heatmap')
-            
-            # Add colorbar for edge probabilities
-            sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min_prob, vmax=max_prob))
-            sm.set_array([])
-            plt.colorbar(sm, ax=ax, label='Edge Probability')
+                
+                ax.set_title('Edge Probability Heatmap (Top 10%)')
+                
+                # Add colorbar for edge probabilities
+                sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min_prob, vmax=max_prob))
+                sm.set_array([])
+                plt.colorbar(sm, ax=ax, label='Edge Probability')
             
         else:
             # For UTSPLoss: Plot NxN heatmap
