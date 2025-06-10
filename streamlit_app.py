@@ -375,24 +375,55 @@ class EnhancedVisualizer:
 
     def plot_heatmap(self, ax, coords, heatmap, edge_index=None):
         coords_np = safe_to_numpy(coords)
+        
         if edge_index is not None:
             # For EdgeHeatmapLoss: Plot edge probabilities
             edge_probs = safe_to_numpy(heatmap)
-            ax.scatter(coords_np[:, 0], coords_np[:, 1], c='blue', s=50)
+            
+            # Plot nodes in gray/black for better contrast
+            ax.scatter(coords_np[:, 0], coords_np[:, 1], c='black', s=60, zorder=3)
             
             # Convert edge_index to numpy if it's a tensor
             edge_index_np = safe_to_numpy(edge_index)
             
-            # Plot edges with probabilities
+            # Normalize probabilities for better visualization
+            if len(edge_probs) > 0:
+                min_prob, max_prob = edge_probs.min(), edge_probs.max()
+                if max_prob > min_prob:
+                    normalized_probs = (edge_probs - min_prob) / (max_prob - min_prob)
+                else:
+                    normalized_probs = edge_probs
+            else:
+                normalized_probs = edge_probs
+            
+            # Plot edges with probabilities using colormap
+            import matplotlib.cm as cm
+            cmap = cm.get_cmap('viridis')  # or 'plasma', 'hot', 'cool'
+            
             for i in range(edge_index_np.shape[1]):
                 u, v = edge_index_np[0, i], edge_index_np[1, i]
                 prob = edge_probs[i]
-                if prob > 0.1:  # Only show edges with probability > 0.1
+                norm_prob = normalized_probs[i]
+                
+                # Lower threshold and better visibility
+                if prob > 0.01:  # Much lower threshold
+                    color = cmap(norm_prob)
+                    # Use fixed alpha for visibility, vary linewidth instead
+                    linewidth = 0.5 + 4 * norm_prob  # Range: 0.5 to 4.5
                     ax.plot([coords_np[u, 0], coords_np[v, 0]], 
                            [coords_np[u, 1], coords_np[v, 1]], 
-                           'r-', alpha=prob, linewidth=2)
+                           color=color, 
+                           alpha=0.7,  # Fixed alpha for visibility
+                           linewidth=linewidth, 
+                           zorder=1)
             
             ax.set_title('Edge Probability Heatmap')
+            
+            # Add colorbar for edge probabilities
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min_prob, vmax=max_prob))
+            sm.set_array([])
+            plt.colorbar(sm, ax=ax, label='Edge Probability')
+            
         else:
             # For UTSPLoss: Plot NxN heatmap
             heatmap_np = safe_to_numpy(heatmap)
@@ -509,9 +540,17 @@ class UTSPTrainer:
 
         # Initialize or restore training state
         if st.session_state.training_state['model_state'] is not None:
-            self.model.load_state_dict(st.session_state.training_state['model_state'])
-            optimizer.load_state_dict(st.session_state.training_state['optimizer_state'])
-            start_epoch = st.session_state.training_state['current_epoch']
+            try:
+                # Try to load the state dict
+                self.model.load_state_dict(st.session_state.training_state['model_state'])
+                optimizer.load_state_dict(st.session_state.training_state['optimizer_state'])
+                start_epoch = st.session_state.training_state['current_epoch']
+            except RuntimeError as e:
+                # If there's a mismatch in architecture, start fresh
+                st.warning("Previous model state has different architecture. Starting fresh training.")
+                st.session_state.training_state['model_state'] = None
+                st.session_state.training_state['optimizer_state'] = None
+                start_epoch = 0
         else:
             start_epoch = 0
 
