@@ -377,56 +377,42 @@ class EnhancedVisualizer:
         coords_np = safe_to_numpy(coords)
         
         if edge_index is not None:
-            # For EdgeHeatmapLoss: Plot edge probabilities
             edge_probs = safe_to_numpy(heatmap)
-            
-            # Plot nodes in gray/black for better contrast
-            ax.scatter(coords_np[:, 0], coords_np[:, 1], c='black', s=60, zorder=3)
-            
-            # Convert edge_index to numpy if it's a tensor
             edge_index_np = safe_to_numpy(edge_index)
             
-            # Get top 10% of edges by probability
+            # Plot nodes as black dots
+            ax.scatter(coords_np[:, 0], coords_np[:, 1], c='black', s=60, zorder=3)
+            
             if len(edge_probs) > 0:
-                # Calculate threshold for top 10%
-                threshold = np.percentile(edge_probs, 90)  # Keep top 10%
+                # Sort probabilities and assign ranks (0 to n-1)
+                sorted_indices = np.argsort(edge_probs)  # ascending order
+                ranks = np.empty_like(sorted_indices)
+                ranks[sorted_indices] = np.arange(len(edge_probs))
                 
-                # Filter edges and probabilities
-                top_indices = np.where(edge_probs >= threshold)[0]
-                top_probs = edge_probs[top_indices]
+                # Convert ranks to 0-1 scale for color mapping
+                color_intensities = ranks / (len(edge_probs) - 1) if len(edge_probs) > 1 else np.zeros_like(ranks)
                 
-                # Normalize the top probabilities
-                min_prob, max_prob = top_probs.min(), top_probs.max()
-                if max_prob > min_prob:
-                    normalized_probs = (top_probs - min_prob) / (max_prob - min_prob)
-                else:
-                    normalized_probs = top_probs
-                
-                # Plot edges with probabilities using colormap
+                # Use colormap for consistent color assignment
                 import matplotlib.cm as cm
-                cmap = cm.get_cmap('viridis')
+                cmap = cm.get_cmap('plasma')
                 
-                for idx, i in enumerate(top_indices):
+                # Plot each edge with rank-based color intensity
+                for i in range(len(edge_probs)):
                     u, v = edge_index_np[0, i], edge_index_np[1, i]
-                    norm_prob = normalized_probs[idx]
+                    color = cmap(color_intensities[i])  # color based on rank, not value
+                    linewidth = 0.5 + 2.0 * color_intensities[i]  # thickness based on rank
                     
-                    color = cmap(norm_prob)
-                    # Use fixed alpha for visibility, vary linewidth instead
-                    linewidth = 1.0 + 3 * norm_prob  # Range: 1.0 to 4.0
                     ax.plot([coords_np[u, 0], coords_np[v, 0]], 
                            [coords_np[u, 1], coords_np[v, 1]], 
-                           color=color, 
-                           alpha=0.8,  # Slightly higher alpha for better visibility
-                           linewidth=linewidth, 
-                           zorder=1)
+                           color=color, linewidth=linewidth, alpha=0.7, zorder=1)
                 
-                ax.set_title('Edge Probability Heatmap (Top 10%)')
+                ax.set_title(f'Edge Heatmap - Rank Based ({len(edge_probs)} edges)')
                 
-                # Add colorbar for edge probabilities
-                sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=min_prob, vmax=max_prob))
+                # Add colorbar to show rank scale
+                sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=1))
                 sm.set_array([])
-                plt.colorbar(sm, ax=ax, label='Edge Probability')
-            
+                plt.colorbar(sm, ax=ax, label='Edge Rank')
+        
         else:
             # For UTSPLoss: Plot NxN heatmap
             heatmap_np = safe_to_numpy(heatmap)
