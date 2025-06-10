@@ -379,11 +379,19 @@ class EnhancedVisualizer:
             # For EdgeHeatmapLoss: Plot edge probabilities
             edge_probs = safe_to_numpy(heatmap)
             ax.scatter(coords_np[:, 0], coords_np[:, 1], c='blue', s=50)
-            for i, (u, v) in enumerate(edge_index.T):
-                if edge_probs[i] > 0.1:  # Only show edges with probability > 0.1
+            
+            # Convert edge_index to numpy if it's a tensor
+            edge_index_np = safe_to_numpy(edge_index)
+            
+            # Plot edges with probabilities
+            for i in range(edge_index_np.shape[1]):
+                u, v = edge_index_np[0, i], edge_index_np[1, i]
+                prob = edge_probs[i]
+                if prob > 0.1:  # Only show edges with probability > 0.1
                     ax.plot([coords_np[u, 0], coords_np[v, 0]], 
                            [coords_np[u, 1], coords_np[v, 1]], 
-                           'r-', alpha=edge_probs[i], linewidth=1)
+                           'r-', alpha=prob, linewidth=2)
+            
             ax.set_title('Edge Probability Heatmap')
         else:
             # For UTSPLoss: Plot NxN heatmap
