@@ -17,7 +17,7 @@ import pandas as pd
 import warnings
 import os
 import tempfile
-from lk_heuristic.utils.solver_funcs import solve as lkh_solve
+import elkai
 
 # Initialize session state variables
 if 'training_state' not in st.session_state:

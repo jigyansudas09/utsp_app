@@ -5,5 +5,4 @@ pandas>=1.3.0
 matplotlib>=3.4.0
 seaborn>=0.11.0
 streamlit>=1.22.0
-elkai>=1.0.0
-lk-heuristic>=0.1.0 
+elkai>=1.0.0 
