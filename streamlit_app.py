@@ -8,7 +8,7 @@ import torch_geometric
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.nn import GATv2Conv, GINConv, SAGEConv
-from torch_geometric.transforms import KNNGraph
+from torch_geometric.transforms import BaseTransform
 from torch_geometric.utils import to_undirected
 import numpy as np
 import matplotlib.pyplot as plt
@@ -448,6 +448,34 @@ class EnhancedVisualizer:
         st.pyplot(fig)
         plt.close(fig)
 
+class CustomKNNGraph(BaseTransform):
+    def __init__(self, k=20, loop=False):
+        self.k = k
+        self.loop = loop
+
+    def forward(self, data: Data) -> Data:
+        assert data.pos is not None
+        
+        # Calculate pairwise distances
+        dist = torch.cdist(data.pos, data.pos)
+        
+        # Get k nearest neighbors for each node
+        if not self.loop:
+            dist.fill_diagonal_(float('inf'))
+        
+        # Get indices of k nearest neighbors
+        _, col = torch.topk(dist, k=self.k, dim=1, largest=False)
+        row = torch.arange(data.pos.size(0), device=data.pos.device).view(-1, 1).repeat(1, self.k)
+        
+        # Create edge index
+        edge_index = torch.stack([row.view(-1), col.view(-1)], dim=0)
+        
+        # Make edges undirected
+        edge_index = to_undirected(edge_index)
+        
+        data.edge_index = edge_index
+        return data
+
 class UTSPTrainer:
     def __init__(self, model, device, visualizer):
         self.model = model.to(device)
@@ -465,7 +493,7 @@ class UTSPTrainer:
             dataloader = PyGDataLoader(dataset, batch_size=batch_size, shuffle=True)
             criterion = UTSPLoss(**loss_params).to(self.device)
         else:
-            dataloader = PyGDataLoader([KNNGraph(k=20, loop=False)(d.clone()) for d in dataset],
+            dataloader = PyGDataLoader([CustomKNNGraph(k=20, loop=False)(d.clone()) for d in dataset],
                                      batch_size=batch_size, shuffle=True)
             criterion = EdgeHeatmapLoss(**loss_params).to(self.device)
 
@@ -583,7 +611,7 @@ class UTSPTrainer:
                 heatmap_for_viz = heatmap_for_solver[edge_index_for_viz[0], edge_index_for_viz[1]]
                 edge_index_for_solve = None
             else:
-                knn_data = KNNGraph(k=20, loop=False)(eval_data).to(self.device)
+                knn_data = CustomKNNGraph(k=20, loop=False)(eval_data).to(self.device)
                 output = self.model(knn_data)
                 
                 heatmap_prob = torch.sigmoid(output)
