@@ -373,6 +373,44 @@ class EnhancedVisualizer:
         st.pyplot(fig)
         plt.close(fig)
 
+    def plot_heatmap(self, ax, coords, heatmap, edge_index=None):
+        coords_np = safe_to_numpy(coords)
+        if edge_index is not None:
+            # For EdgeHeatmapLoss: Plot edge probabilities
+            edge_probs = safe_to_numpy(heatmap)
+            ax.scatter(coords_np[:, 0], coords_np[:, 1], c='blue', s=50)
+            for i, (u, v) in enumerate(edge_index.T):
+                if edge_probs[i] > 0.1:  # Only show edges with probability > 0.1
+                    ax.plot([coords_np[u, 0], coords_np[v, 0]], 
+                           [coords_np[u, 1], coords_np[v, 1]], 
+                           'r-', alpha=edge_probs[i], linewidth=1)
+            ax.set_title('Edge Probability Heatmap')
+        else:
+            # For UTSPLoss: Plot NxN heatmap
+            heatmap_np = safe_to_numpy(heatmap)
+            im = ax.imshow(heatmap_np, cmap='viridis')
+            ax.set_title('UTSP Heatmap Matrix')
+            plt.colorbar(im, ax=ax)
+        
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.grid(True, alpha=0.3)
+
+    def plot_tour(self, ax, coords, tour, title):
+        coords_np = safe_to_numpy(coords)
+        tour_np = np.array(tour)
+        
+        ax.scatter(coords_np[:, 0], coords_np[:, 1], c='blue', s=50)
+        for i in range(len(tour_np)):
+            start = coords_np[tour_np[i]]
+            end = coords_np[tour_np[(i + 1) % len(tour_np)]]
+            ax.plot([start[0], end[0]], [start[1], end[1]], 'r-', linewidth=1)
+        
+        ax.set_title(title)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.grid(True, alpha=0.3)
+
     def plot_final_comparison(self, all_results, gold_standard_length=None):
         labels, tour_lengths = [], []
         for model_key, result in all_results.items():
